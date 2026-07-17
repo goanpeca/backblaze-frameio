@@ -29,6 +29,17 @@ import fetch from "node-fetch";
 
 import {formatBytes} from "./utils.js";
 
+const B2_USER_AGENT = 'backblaze-frameio/0.0.1 (backblaze-b2-samples)';
+const DEFAULT_MAX_ATTEMPTS = 10;
+
+function getB2MaxAttempts() {
+    const maxAttempts = parseInt(process.env.B2_MAX_ATTEMPTS || DEFAULT_MAX_ATTEMPTS, 10);
+    if (Number.isNaN(maxAttempts) || maxAttempts < 1) {
+        throw new Error('B2_MAX_ATTEMPTS must be a positive integer');
+    }
+    return maxAttempts;
+}
+
 class Uploader {
     // Defaults same as AWS SDK
     static defaultQueueSize = 4;
@@ -176,7 +187,17 @@ export function uploadUrlToB2(options) {
 }
 
 export function getB2Connection() {
-    return new S3({customUserAgent: 'b2-node-docker-0.2'});
+    const region = process.env.B2_REGION;
+    return new S3({
+        region,
+        endpoint: `https://s3.${region}.backblazeb2.com`,
+        credentials: {
+            accessKeyId: process.env.B2_APPLICATION_KEY_ID,
+            secretAccessKey: process.env.B2_APPLICATION_KEY
+        },
+        customUserAgent: B2_USER_AGENT,
+        maxAttempts: getB2MaxAttempts()
+    });
 }
 
 export async function createB2SignedUrl(client, bucket, key) {

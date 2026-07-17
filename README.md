@@ -43,11 +43,11 @@ You need to set the following environment variables in the container environment
 
 - `FRAMEIO_TOKEN` = The Frame.io developer **token** you obtain from https://developer.frame.io/app/tokens
 - `FRAMEIO_SECRET` = the Frame.io Custom Action **secret** you obtain from https://developer.frame.io/app/custom-actions
-- `AWS_ACCESS_KEY_ID` = Your Backblaze B2 application key ID - it is strongly recommended this is unique for this app
-- `AWS_SECRET_ACCESS_KEY` = Your Backblaze B2 application key - it is strongly recommended this is unique for this app
-- `AWS_ENDPOINT_URL` = Your Backblaze B2 S3-compatible endpoint, in the form `https://s3.REGION.backblazeb2.com`
-- `AWS_REGION` = The region from your Backblaze B2 S3-compatible endpoint, e.g. `us-west-004`
-- `BUCKET_NAME` = Your Backblaze B2 bucket name
+- `B2_APPLICATION_KEY_ID` = Your Backblaze B2 application key ID - it is strongly recommended this is unique for this app
+- `B2_APPLICATION_KEY` = Your Backblaze B2 application key - it is strongly recommended this is unique for this app
+- `B2_BUCKET_NAME` = Your Backblaze B2 bucket name
+- `B2_REGION` = The region from your Backblaze B2 S3-compatible endpoint, e.g. `us-west-004`
+- `B2_PUBLIC_URL_BASE` = Your Backblaze B2 public URL base, in the form `https://fREGION.backblazeb2.com/file/<bucket-name>`
 - `UPLOAD_PATH` = Path in Backblaze B2 for exports, for example `fio_exports`
 - `DOWNLOAD_PATH` = Folder in Frame.io for imports, for example `b2_imports`
 

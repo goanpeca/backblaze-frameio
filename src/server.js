@@ -47,12 +47,6 @@ import 'dotenv/config';
 
 checkEnvVars(ENV_VARS);
 
-const DEFAULT_MAX_ATTEMPTS = 10;
-if (!('AWS_MAX_ATTEMPTS' in process.env)) {
-    console.log(`Setting AWS_MAX_ATTEMPTS to ${DEFAULT_MAX_ATTEMPTS}`)
-    process.env['AWS_MAX_ATTEMPTS'] = DEFAULT_MAX_ATTEMPTS;
-}
-
 const b2 = getB2Connection();
 
 const app = express();
@@ -70,7 +64,7 @@ app.post('/', [checkContentType, formProcessor], async(req, res) => {
     console.log(`Server request: ${JSON.stringify(req.body, null, 2)}`);
 
     try {
-        const bucket = process.env.BUCKET_NAME;
+        const bucket = process.env.B2_BUCKET_NAME;
         if ('proceed' in req.body['data']) {
             // Get the saved data
             const proceed = req.body['data']['proceed']

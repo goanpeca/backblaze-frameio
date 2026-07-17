@@ -35,13 +35,12 @@ export const EXPORT = 'Export';
 export const ENV_VARS = [
     { varName: 'FRAMEIO_TOKEN', optional: false, display: false },
     { varName: 'FRAMEIO_SECRET', optional: false, display: false },
-    { varName: 'AWS_ENDPOINT_URL', optional: true, display: true },
-    { varName: 'AWS_ACCESS_KEY_ID', optional: true, display: true },
-    { varName: 'AWS_SECRET_ACCESS_KEY', optional: true, display: false },
-    { varName: 'AWS_REGION', optional: true, display: true },
-    { varName: 'AWS_MAX_ATTEMPTS', optional: true, display: true },
-    { varName: 'AWS_PROFILE', optional: true, display: true },
-    { varName: 'BUCKET_NAME', optional: false, display: true },
+    { varName: 'B2_APPLICATION_KEY_ID', optional: false, display: true },
+    { varName: 'B2_APPLICATION_KEY', optional: false, display: false },
+    { varName: 'B2_BUCKET_NAME', optional: false, display: true },
+    { varName: 'B2_REGION', optional: false, display: true },
+    { varName: 'B2_PUBLIC_URL_BASE', optional: true, display: true },
+    { varName: 'B2_MAX_ATTEMPTS', optional: true, display: true },
     { varName: 'UPLOAD_PATH', optional: false, display: true },
     { varName: 'DOWNLOAD_PATH', optional: false, display: true },
     { varName: 'QUEUE_SIZE', optional: true, display: true },
@@ -123,7 +122,7 @@ export async function formProcessor(req, res, next) {
             // todo : possibly limit importing the export location
             formResponse = {
                 "title": "Enter the location",
-                "description": `Please enter the object path to import from Backblaze. As a reminder, your bucket name is ${process.env.BUCKET_NAME}.`,
+                "description": `Please enter the object path to import from Backblaze. As a reminder, your bucket name is ${process.env.B2_BUCKET_NAME}.`,
                 "fields": [{
                     "type": "text",
                     "label": "B2 Path",
@@ -191,7 +190,7 @@ export async function exportFiles(request) {
         await uploadUrlToB2({
             client: b2,
             url: entry.url,
-            bucket: process.env.BUCKET_NAME,
+            bucket: process.env.B2_BUCKET_NAME,
             key,
             name: entry.name,
             totalBytes: entry.filesize,
@@ -199,7 +198,7 @@ export async function exportFiles(request) {
             partSize,
             metadata: {
                 frameio_name: entry.name,
-                b2_keyid: process.env.ACCESS_KEY
+                b2_keyid: process.env.B2_APPLICATION_KEY_ID
             },
         });
         output.push(entry)
@@ -222,7 +221,7 @@ export async function importFiles(req) {
         search_prefix += '/';
     }
 
-    const bucket = process.env.BUCKET_NAME;
+    const bucket = process.env.B2_BUCKET_NAME;
     const folderCache = new Map();
 
     async function getNameAndFolderId(download_folder_id, key) {
