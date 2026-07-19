@@ -39,13 +39,16 @@ export const ENV_VARS = [
     { varName: 'B2_APPLICATION_KEY', optional: false, display: false },
     { varName: 'B2_BUCKET_NAME', optional: false, display: true },
     { varName: 'B2_REGION', optional: false, display: true },
-    { varName: 'B2_PUBLIC_URL_BASE', optional: true, display: true },
+    { varName: 'B2_ENDPOINT', optional: true, display: true },
     { varName: 'B2_MAX_ATTEMPTS', optional: true, display: true },
+    { varName: 'B2_ALLOWED_IMPORT_PREFIX', optional: true, display: true },
     { varName: 'UPLOAD_PATH', optional: false, display: true },
     { varName: 'DOWNLOAD_PATH', optional: false, display: true },
     { varName: 'QUEUE_SIZE', optional: true, display: true },
     { varName: 'PART_SIZE', optional: true, display: true }
 ];
+
+const FRAMEIO_SIGNATURE_PATTERN = /^v0=[a-f0-9]{64}$/i;
 
 export function verifyTimestampAndSignature(req, res, buf) {
     // X-Frameio-Request-Timestamp header from incoming request
@@ -59,8 +62,14 @@ export function verifyTimestampAndSignature(req, res, buf) {
         throw createError.Forbidden();
     }
 
+    const timestampSeconds = Number(timestamp);
+    if (!Number.isFinite(timestampSeconds)) {
+        console.log(`${req.method} to ${req.url}: invalid timestamp`);
+        throw createError.Forbidden();
+    }
+
     // Frame.io suggests verifying that the timestamp is within five minutes of local time
-    if (timestamp < (now - FIVE_MINUTES) || timestamp > (now + FIVE_MINUTES)) {
+    if (timestampSeconds < (now - FIVE_MINUTES) || timestampSeconds > (now + FIVE_MINUTES)) {
         console.log(`${req.method} to ${req.url}: timestamp out of bounds. Timestamp: ${timestamp}; now: ${now}`);
         throw createError.Forbidden();
     }
@@ -70,11 +79,59 @@ export function verifyTimestampAndSignature(req, res, buf) {
     const stringToSign = 'v0:' + timestamp + ':' + body;
     const hmac = crypto.createHmac('sha256', process.env.FRAMEIO_SECRET);
     const expectedSignature = 'v0=' + hmac.update(stringToSign).digest('hex');
+    const receivedSignature = req.header('X-Frameio-Signature') || '';
 
-    if (expectedSignature !== req.header('X-Frameio-Signature')) {
-        console.log(`${req.method} to ${req.url}: mismatched HMAC. Expecting '${expectedSignature}', received '${req.header('X-Frameio-Signature')}'`);
+    if (!FRAMEIO_SIGNATURE_PATTERN.test(receivedSignature)) {
+        console.log(`${req.method} to ${req.url}: invalid HMAC signature format`);
         throw createError.Forbidden();
     }
+
+    const expectedBuffer = Buffer.from(expectedSignature);
+    const receivedBuffer = Buffer.from(receivedSignature);
+    if (!crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
+        console.log(`${req.method} to ${req.url}: mismatched HMAC signature`);
+        throw createError.Forbidden();
+    }
+}
+
+export function normalizeB2ObjectPath(value, fieldName = 'b2path') {
+    if (typeof value !== 'string') {
+        throw createError.BadRequest(`${fieldName} must be a string`);
+    }
+
+    const trimmed = value.trim().replace(/^\/+/, '').replace(/\/+$/, '');
+    if (!trimmed) {
+        throw createError.BadRequest(`${fieldName} must not be empty`);
+    }
+    if (trimmed.split('/').includes('..')) {
+        throw createError.BadRequest(`${fieldName} must not contain parent path segments`);
+    }
+
+    const normalized = path.posix.normalize(trimmed);
+    if (normalized === '.' || normalized === '..' || normalized.startsWith('../')) {
+        throw createError.BadRequest(`${fieldName} must not contain parent path segments`);
+    }
+
+    return normalized;
+}
+
+export function getAllowedImportPrefix() {
+    return normalizeB2ObjectPath(process.env.B2_ALLOWED_IMPORT_PREFIX || process.env.UPLOAD_PATH, 'B2_ALLOWED_IMPORT_PREFIX');
+}
+
+export function assertAllowedB2ImportPath(b2path, allowedPrefix = getAllowedImportPrefix()) {
+    const normalizedPath = normalizeB2ObjectPath(b2path);
+    const normalizedPrefix = normalizeB2ObjectPath(allowedPrefix, 'B2_ALLOWED_IMPORT_PREFIX');
+    if (normalizedPath !== normalizedPrefix && !normalizedPath.startsWith(`${normalizedPrefix}/`)) {
+        throw createError.Forbidden('B2 import path is outside the allowed prefix');
+    }
+    return normalizedPath;
+}
+
+export function getB2ObjectMetadata(frameioName) {
+    return {
+        frameio_name: frameioName
+    };
 }
 
 export async function formProcessor(req, res, next) {
@@ -196,10 +253,7 @@ export async function exportFiles(request) {
             totalBytes: entry.filesize,
             queueSize,
             partSize,
-            metadata: {
-                frameio_name: entry.name,
-                b2_keyid: process.env.B2_APPLICATION_KEY_ID
-            },
+            metadata: getB2ObjectMetadata(entry.name),
         });
         output.push(entry)
     }
@@ -216,7 +270,7 @@ export async function importFiles(req) {
             || fio.createFolder(rootId, process.env.DOWNLOAD_PATH);
     });
 
-    let search_prefix = req.data['b2path'];
+    let search_prefix = assertAllowedB2ImportPath(req.data['b2path']);
     if (req.data['isPrefix']) {
         search_prefix += '/';
     }
